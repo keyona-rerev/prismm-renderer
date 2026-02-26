@@ -9,8 +9,3 @@
     "puppeteer": "^21.0.0"
   }
 }
-```
-
-**`Procfile`**
-```
-web: node index.js
