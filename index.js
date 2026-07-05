@@ -14,10 +14,16 @@ app.post('/render', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { html } = req.body;
+  const { html, width, height } = req.body;
   if (!html) {
     return res.status(400).json({ error: 'No HTML provided' });
   }
+
+  // Default to 1200x627 (LinkedIn landscape), the dimensions
+  // generate-draft-visual's design rules actually produce. Callers can
+  // override for other formats (e.g. square) without redeploying.
+  const w = Number.isFinite(width) ? width : 1200;
+  const h = Number.isFinite(height) ? height : 627;
 
   let browser;
   try {
@@ -32,22 +38,25 @@ app.post('/render', async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 1200, deviceScaleFactor: 2 });
+    await page.setViewport({ width: w, height: h, deviceScaleFactor: 2 });
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
+    // PNG, not JPEG: this content is branded typography on gradient
+    // backgrounds, not a photo. JPEG's lossy compression visibly softens
+    // text edges and banding on gradients; PNG is lossless and appropriate
+    // for graphic/text-heavy output like this.
     const screenshot = await page.screenshot({
-      type: 'jpeg',
-      quality: 95,
-      clip: { x: 0, y: 0, width: 1200, height: 1200 }
+      type: 'png',
+      clip: { x: 0, y: 0, width: w, height: h }
     });
 
     await browser.close();
 
-    // Return base64 encoded JPEG
+    // Return base64 encoded PNG
     res.json({
       success: true,
       image: screenshot.toString('base64'),
-      mimeType: 'image/jpeg'
+      mimeType: 'image/png'
     });
 
   } catch (e) {
